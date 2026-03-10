@@ -312,8 +312,8 @@ v ← β₂·v + (1−β₂)·g²
       <div class="control-group">
         <label>Model Type</label>
         <div class="radio-group" id="model-group">
-          <label class="radio-item"><input type="radio" name="model" value="ann" checked> <span>ANN Baseline</span><small>~109K params</small></label>
-          <label class="radio-item"><input type="radio" name="model" value="cnn"> <span>CNN</span><small>~122K params</small></label>
+          <label class="radio-item"><input type="radio" name="model" value="ann" checked> <span>ANN Baseline</span><small>D3, ~109K params</small></label>
+          <label class="radio-item"><input type="radio" name="model" value="cnn"> <span>CNN</span><small>~422K params</small></label>
         </div>
       </div>
       <div class="toggle-row">
@@ -861,10 +861,10 @@ function renderStats(containerId, curves, label) {
 // ═══════════════════════════════════════════════════════════
 
 const LR_NOTES = {
-  '0.1':     '<strong>lr = 0.1 — Too high.</strong> The optimizer overshoots the loss minimum on every step. Loss oscillates around a high plateau (~1.75) and never converges. Accuracy is stuck near <strong>random (≈20%)</strong> for a 10-class problem — the model learns nothing.',
+  '0.1':     '<strong>lr = 0.1 — Too high.</strong> The optimizer overshoots the loss minimum on every step. Loss oscillates around a high plateau (~1.75) and never converges. Accuracy is stuck near <strong>random (≈10%)</strong> for a 10-class problem — the model learns nothing.',
   '0.01':    '<strong>lr = 0.01 — High.</strong> Fast initial convergence, but noisy. Validation loss diverges noticeably after epoch ~5, and accuracy plateaus around <strong>0.86</strong>. The larger step size prevents settling into a flat minimum.',
   '0.001':   '<strong>lr = 0.001 — Baseline / Optimal.</strong> Smooth convergence. Training loss reaches ~0.13 but validation loss bottoms at epoch ~7 then rises — classic overfitting. Best validation accuracy ≈ <strong>0.876</strong>. Early stopping around epoch 7–8 would recover the best checkpoint.',
-  '0.0001':  '<strong>lr = 0.0001 — Low.</strong> Stable and smooth — no overfitting — but curves are <em>still descending</em> at epoch 30. The model is undertrained within this budget. More epochs would help, but compute cost grows proportionally.',
+  '0.0001':  '<strong>lr = 0.0001 — Slow but surprisingly effective.</strong> Stable and smooth — no overfitting at all — and <em>the best final val accuracy (0.8805) and lowest final val loss (0.3331) of all five rates</em> within this 30-epoch run. The caveat: curves are <em>still descending</em> at epoch 30 and haven\'t converged, so it hasn\'t found its true optimum yet. More epochs would push it further — the 30-epoch budget gives it an unexpected win on final metrics despite not converging.',
   '0.00001': '<strong>lr = 0.00001 — Too low.</strong> The descent is nearly linear and extremely slow. At epoch 30 the model has barely left its random initialisation. Not useful within 30-epoch budgets.',
 };
 const BS_NOTES = {
@@ -872,20 +872,20 @@ const BS_NOTES = {
   '32':   '<strong>Batch size = 32.</strong> Good balance — noticeably less noise than bs=16 while still retaining the regularisation benefit of smaller batches.',
   '64':   '<strong>Batch size = 64 — Baseline.</strong> The standard choice for this problem. Smooth enough curves, good generalisation.',
   '256':  '<strong>Batch size = 256 — Large.</strong> Very smooth curves, faster epochs, but the model finds <em>sharper minima</em> that generalise worse. Validation accuracy drops ~1pp vs baseline.',
-  '1024': '<strong>Batch size = 1024 — Very large.</strong> Extremely smooth curves, fastest wall-clock per epoch. But the generalization gap widens noticeably — large-batch training is known to converge to sharp minima with worse test performance.',
+  '1024': '<strong>Batch size = 1024 — Very large.</strong> Extremely smooth curves, fastest wall-clock per epoch. Contrary to theoretical expectations, bs=1024 achieved the <em>lowest final val loss (0.3573) of all five sizes</em> — not the highest. Val accuracy was similar to all other sizes (~0.875). Within this 30-epoch experiment the predicted sharp-minima generalisation penalty did not materialise, likely because 30 epochs is too short to see it.',
 };
 const OPT_NOTES = {
   'sgd': `<strong>SGD — Vanilla Stochastic Gradient Descent.</strong>
 The simplest possible update rule: move each parameter opposite to its current gradient, scaled by a fixed learning rate. There is no memory of past gradients and no per-parameter adaptation — every weight is treated identically.
 <br><br>
-<strong>What you see:</strong> Loss is still clearly descending at epoch 30 — the model has not converged within this budget. Val accuracy peaks around <strong>~71%</strong>, far below Adam. Curves are moderately noisy with no sign of levelling off.
+<strong>What you see:</strong> Loss is still clearly descending at epoch 30 — the model has not converged within this budget. Val accuracy reaches around <strong>~83%</strong> (actual: 0.8319), noticeably below Adam. Curves are moderately noisy with no sign of levelling off.
 <br><br>
 <strong>Why:</strong> With lr = 0.001 and no momentum, each step is tiny and direction-blind. In the high-dimensional parameter space of a neural network, ravines are common — gradient directions perpendicular to the true descent direction cause oscillation, while progress toward the minimum is glacially slow. SGD needs either a much higher LR (at the risk of divergence) or many more epochs. It also tends to find <em>flatter minima</em> than Adam, which can sometimes generalise better — but on this problem the underfitting penalty outweighs that benefit.`,
 
   'sgd_momentum': `<strong>SGD + Momentum (β = 0.9).</strong>
 Adds a velocity term that accumulates an exponential moving average of past gradients. The parameter update uses this velocity rather than the raw gradient, so consistent directions build up speed while oscillating directions cancel out.
 <br><br>
-<strong>What you see:</strong> Substantially faster convergence than vanilla SGD, smoother curves. Reaches <strong>~84% val accuracy</strong> — a major jump. Still slightly behind Adam/RMSprop, and training loss continues falling while val loss plateaus, a sign of mild overfitting.
+<strong>What you see:</strong> Substantially faster convergence than vanilla SGD, smoother curves. Reaches <strong>~87–88% val accuracy</strong> (actual: 0.8751) — nearly matching Adam. More importantly, it achieves the <em>lowest final val loss of all four optimizers</em> (0.3520 vs Adam's 0.4671), still descending at epoch 30 with no overfitting divergence. The best optimizer for generalisation in this experiment.
 <br><br>
 <strong>Why:</strong> With β = 0.9, each update carries 90% of the previous velocity forward. In directions where gradients consistently point the same way (toward the minimum), velocity grows — so the effective step size is much larger than η alone. In directions where gradients flip sign each step (ravine walls), velocities cancel, reducing zig-zagging. Think of a ball rolling downhill: it moves faster in flat valleys and slows at turns.`,
 
@@ -907,14 +907,14 @@ const OPT_DEEP_NOTES = {
   'sgd': `<strong>SGD — Vanilla Gradient Descent (CNN).</strong>
 No memory, no adaptation. Every parameter moves by exactly η × gradient, regardless of magnitude or history.
 <br><br>
-<strong>What you see:</strong> Slowest convergence of all seven. Val loss still descending at epoch 30 — the model is undertrained within this budget. Val accuracy ~85% on CNN (higher than ANN thanks to inductive bias, but still the weakest optimizer here).
+<strong>What you see:</strong> Slowest convergence of all seven. Val loss still descending at epoch 30 — the model is undertrained within this budget. Val accuracy ~82% on CNN (actual: 0.8188 — the weakest optimizer here despite inductive bias from the CNN architecture).
 <br><br>
 <strong>Key insight:</strong> SGD often finds <em>flatter minima</em> than adaptive methods, which can sometimes generalise better. On Fashion-MNIST the underfitting penalty outweighs this benefit within 30 epochs, but with more epochs and a tuned LR, SGD can match or beat Adam on generalisation.`,
 
   'sgd_nesterov': `<strong>SGD + Nesterov Momentum (β = 0.9).</strong>
 Standard momentum applies the velocity from the <em>previous</em> step and then computes the gradient at the current position. Nesterov reverses the order: it first applies the current velocity (a "look-ahead" step) and then computes the gradient at that <em>anticipated future position</em>. This lookahead gradient is a better estimate of the true direction after the update, so corrections happen one step earlier.
 <br><br>
-<strong>What you see:</strong> Noticeably faster convergence than plain SGD+Momentum, smoother curves, and slightly better val accuracy (~87%). The look-ahead effect reduces the overshoot oscillations visible in standard momentum.
+<strong>What you see:</strong> Noticeably faster convergence than plain SGD+Momentum, smoother curves, and strong val accuracy (~90%, actual: 0.9017). The look-ahead effect reduces overshoot oscillations and the curves are still descending at epoch 29 — nearly converged but not quite.
 <br><br>
 <strong>Key insight:</strong> The difference between standard momentum and Nesterov is subtle mathematically (a single extra gradient evaluation) but meaningful in practice, especially in valleys where gradients change direction quickly.`,
 
@@ -947,24 +947,26 @@ Standard Adam adds weight decay as a gradient penalty: <code>g ← g + λθ</cod
 <strong>Key insight:</strong> AdamW is now the recommended default for transformer-based models (ViT, BERT, GPT). The difference matters most when weight decay is a primary regularisation tool.`,
 
   'nadam': `<strong>Nadam — Adam with Nesterov Momentum.</strong>
-Replaces Adam's standard momentum term with Nesterov look-ahead: instead of applying the accumulated gradient of the <em>previous</em> step, it applies the gradient at the <em>anticipated future position</em>. In practice this means the first-moment estimate in the update formula uses a Nesterov-corrected gradient, giving a slightly better direction estimate each step.
+Replaces Adam's standard momentum term with Nesterov look-ahead: instead of applying the accumulated gradient of the <em>previous</em> step, it applies the gradient at the <em>anticipated future position</em>.
 <br><br>
-<strong>What you see:</strong> Marginally faster convergence than Adam (val loss reaches its minimum 1–2 epochs earlier), similar or slightly better val accuracy. Overfitting onset is slightly earlier because faster convergence means the model "finds the minimum" sooner.
+<strong>⚠ Note:</strong> Nadam did not complete training within the actual lab session due to time constraints. The curves shown here are <em>fully simulated</em> based on theoretical expectations, not empirical results from the Fashion-MNIST experiment.
 <br><br>
-<strong>Key insight:</strong> Nadam is rarely a dramatic improvement over Adam in practice. Its advantage shows most in tasks with sharp, rapidly-changing curvature where the look-ahead correction meaningfully changes the gradient direction.`,
+<strong>Expected behaviour:</strong> Marginally faster convergence than Adam (val loss reaches its minimum 1–2 epochs earlier), similar or slightly better val accuracy. Overfitting onset slightly earlier because the model finds the minimum sooner.
+<br><br>
+<strong>Key insight:</strong> Nadam rarely shows dramatic improvement over Adam in practice. Its advantage is most visible in tasks with sharp, rapidly-changing curvature where the look-ahead correction meaningfully shifts gradient direction.`,
 };
 
 const ARCH_NOTES = {
   minimal:      '<strong>D1 Minimal [32].</strong> Only ~25K parameters. Severe <em>underfitting</em> — both training and validation accuracy are low (~0.83 and ~0.82). The model lacks capacity to represent the decision boundary. Train-val gap is small only because the model is too weak to overfit.',
-  shallow_wide: '<strong>D2 Shallow-Wide [512].</strong> ~402K parameters in a single wide layer. Lots of capacity but shallow — can represent complex functions but not hierarchical features. Overfits more than baseline.',
+  shallow_wide: '<strong>D2 Shallow-Wide [512].</strong> ~407K parameters in a single wide layer. Lots of capacity but shallow — can represent complex functions but not hierarchical features. Overfits more than baseline.',
   baseline:     '<strong>D3 Baseline [128, 64].</strong> ~109K parameters. Good depth/width trade-off. Overfits after epoch ~7 but reaches solid val accuracy of ~0.876.',
-  deep_narrow:  '<strong>D4 Deep-Narrow [64×4].</strong> ~58K parameters across 4 layers. Fewer params than baseline but more depth. Slightly better generalisation (narrower train-val gap) — depth provides compositional hierarchy without inflating parameter count.',
-  deep_wide:    '<strong>D5 Deep-Wide [256, 256, 128, 64].</strong> ~285K parameters — highest capacity. Strong training accuracy (~0.98) but large overfit gap. Val accuracy only marginally better than baseline despite 2.6× more parameters — diminishing returns.',
-  very_deep:    '<strong>D6 Very-Deep [128×6].</strong> 6 hidden layers. Slow convergence in early epochs suggests <em>vanishing gradient</em> issues — gradients weaken as they propagate through 6 layers. Plain ReLU networks can suffer this without batch norm or skip connections.',
+  deep_narrow:  '<strong>D4 Deep-Narrow [64×4].</strong> ~63K parameters across 4 layers. Fewer params than baseline but more depth. Slightly better generalisation (narrower train-val gap) — depth provides compositional hierarchy without inflating parameter count.',
+  deep_wide:    '<strong>D5 Deep-Wide [256, 256, 128, 64].</strong> ~309K parameters across 4 layers. Strong training accuracy (~0.98) but large overfit gap. Best <em>epoch-30</em> val accuracy of all six architectures (0.8863), despite having fewer total parameters than D2 (407K) — depth + width together outperform pure width.',
+  very_deep:    '<strong>D6 Very-Deep [128×6].</strong> ~184K parameters, 6 hidden layers. No vanishing gradient symptoms — training loss decreases steadily all 30 epochs, confirming gradients flow through all 6 layers. What you do see is noisy, oscillating val loss from epoch to epoch, suggesting depth amplifies batch-level variation. Achieves the highest <em>peak</em> val accuracy of all six architectures (0.8891), making it the best ANN for the CNN comparison in Part E.',
 };
 const MODEL_NOTES = {
   ann: '<strong>ANN Baseline.</strong> Flattens 28×28 image to a 784-d vector, losing all spatial structure. Dense layers must learn pixel relationships from scratch without any inductive bias. Val accuracy ≈ 0.876.',
-  cnn: '<strong>CNN.</strong> Uses convolutional filters with <em>local receptive fields</em> and <em>weight sharing</em> — the same filter slides across the image, detecting features regardless of position (translational equivariance). This inductive bias makes CNNs far more parameter-efficient for images. Val accuracy ≈ 0.920+ with similar parameter count.',
+  cnn: '<strong>CNN.</strong> Uses convolutional filters with <em>local receptive fields</em> and <em>weight sharing</em> — the same filter slides across the image, detecting features regardless of position (translational equivariance). Val accuracy ≈ 0.909–0.920. Notably, the CNN has <em>more</em> total parameters (~422K) than the best ANN (D6, ~184K), yet wins by 2pp — proving that <strong>architecture and inductive bias matter more than parameter count</strong> for image data.',
 };
 
 // ═══════════════════════════════════════════════════════════
