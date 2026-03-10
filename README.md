@@ -17,6 +17,7 @@ The five experiments mirror the structure of the accompanying lab notebook:
 | C | Optimizer | SGD vs. momentum vs. adaptive methods (RMSprop, Adam) — including internal update rules |
 | D | Architecture | Underfitting, overfitting, depth vs. width, vanishing gradients |
 | E | ANN vs. CNN | Inductive bias, local receptive fields, weight sharing |
+| F | Optimizer Deep Dive | 7 optimizers on CNN: SGD family vs adaptive family, Adagrad's dying LR, AdamW's decoupled weight decay, Nesterov look-ahead |
 
 Each tab includes:
 - Interactive radio controls to select a configuration
@@ -25,6 +26,8 @@ Each tab includes:
 - Summary statistics (final accuracy, best val loss epoch, train-val gap)
 
 Tab C additionally includes an **Optimizer Internal Mechanisms** panel showing the mathematical update rule for each optimiser (SGD, SGD + Momentum, RMSprop, Adam), key hyperparameter values, and a plain-English description of what each formula does — with the selected optimiser's card highlighted.
+
+Tab F (**Optimizer Deep Dive**) extends Tab C with 7 optimizers all run on the CNN architecture, covering the full SGD family (SGD → SGD+Nesterov) and adaptive family (Adagrad → RMSprop → Adam → AdamW → Nadam). It includes a best-val-accuracy bar chart, per-optimizer annotations connecting internal mechanics to observed curve behaviour, and a 7-card mechanism panel with update rules for all optimizers. Based on the voluntary extension experiment from the course notebook.
 
 ---
 

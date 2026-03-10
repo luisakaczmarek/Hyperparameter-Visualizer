@@ -125,6 +125,7 @@
   <div class="tab" onclick="switchTab('C')">C: Optimizer</div>
   <div class="tab" onclick="switchTab('D')">D: Architecture</div>
   <div class="tab" onclick="switchTab('E')">E: ANN vs CNN</div>
+  <div class="tab" onclick="switchTab('F')">F: Optimizer Deep Dive</div>
 </div>
 
 <!-- ══════════════════ TAB A: Learning Rate ══════════════════ -->
@@ -337,6 +338,119 @@ v ← β₂·v + (1−β₂)·g²
   </div>
 </div>
 
+<!-- ══════════════════ TAB F: Optimizer Deep Dive ══════════════════ -->
+<div id="tab-F" class="content">
+  <div class="row">
+    <div class="controls">
+      <h3>Parameters</h3>
+      <div class="control-group">
+        <label>Optimizer (CNN, lr=0.001)</label>
+        <div class="radio-group" id="opt2-group">
+          <label class="radio-item"><input type="radio" name="opt2" value="sgd"> <span>SGD</span><small>no memory</small></label>
+          <label class="radio-item"><input type="radio" name="opt2" value="sgd_nesterov"> <span>SGD + Nesterov</span><small>look-ahead</small></label>
+          <label class="radio-item"><input type="radio" name="opt2" value="adagrad"> <span>Adagrad</span><small>dying LR</small></label>
+          <label class="radio-item"><input type="radio" name="opt2" value="rmsprop"> <span>RMSprop</span></label>
+          <label class="radio-item"><input type="radio" name="opt2" value="adam" checked> <span>Adam</span><small>baseline</small></label>
+          <label class="radio-item"><input type="radio" name="opt2" value="adamw"> <span>AdamW</span><small>decoupled WD</small></label>
+          <label class="radio-item"><input type="radio" name="opt2" value="nadam"> <span>Nadam</span><small>Nesterov+Adam</small></label>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="opt2-overlay" onchange="updateF()">
+        <label for="opt2-overlay">Overlay all optimizers</label>
+      </div>
+      <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border)">
+        <div class="info-note">All experiments use the CNN architecture — Conv2D(32)→MaxPool→Conv2D(64)→MaxPool→Flatten→Dense(128)→Dense(10)</div>
+      </div>
+    </div>
+    <div class="charts-area">
+      <div id="f-annotation" class="annotation"></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>Loss over Epochs</h4><canvas id="f-loss"></canvas></div>
+        <div class="chart-box"><h4>Accuracy over Epochs</h4><canvas id="f-acc"></canvas></div>
+      </div>
+      <div class="bar-chart-box">
+        <h4>Best Validation Accuracy by Optimizer — SGD family (slower, flatter minima) vs Adaptive family (faster, sharper minima)</h4>
+        <canvas id="f-bar"></canvas>
+      </div>
+      <div class="stats-row" id="f-stats"></div>
+      <div class="mech-section">
+        <h4>Internal Mechanisms — All 7 optimizers compared</h4>
+        <div class="mech-grid">
+
+          <div class="mech-card" id="f-mech-sgd">
+            <h5>SGD</h5>
+            <div class="formula">θ ← θ − η · ∇L(θ)</div>
+            <div class="mech-params"><strong>η</strong> = 0.001</div>
+            <div class="mech-desc">Raw gradient × fixed LR. No history, no adaptation. Simple but slow — same step size for every parameter.</div>
+            <div class="mech-tag">No memory · Fixed LR</div>
+          </div>
+
+          <div class="mech-card" id="f-mech-sgd_nesterov">
+            <h5>SGD + Nesterov</h5>
+            <div class="formula">θ̃ ← θ + β·v
+g̃ ← ∇L(θ̃)
+v ← β·v + η·g̃
+θ ← θ − v</div>
+            <div class="mech-params"><strong>η</strong> = 0.001 &nbsp;·&nbsp; <strong>β</strong> = 0.9</div>
+            <div class="mech-desc">Computes gradient at the <em>anticipated future position</em> (after the momentum step) rather than the current position. Corrects direction before overshooting.</div>
+            <div class="mech-tag">Look-ahead gradient · Fixed LR</div>
+          </div>
+
+          <div class="mech-card" id="f-mech-adagrad">
+            <h5>Adagrad</h5>
+            <div class="formula">G ← G + g²
+θ ← θ − η · g / √(G+ε)</div>
+            <div class="mech-params"><strong>η</strong> = 0.001 &nbsp;·&nbsp; G grows forever</div>
+            <div class="mech-desc">Divides LR by cumulative sum of squared gradients. Fast early convergence, then the ever-growing G makes effective LR → 0. Learning stops. RMSprop fixes this.</div>
+            <div class="mech-tag">Dying LR · Per-param scaling</div>
+          </div>
+
+          <div class="mech-card" id="f-mech-rmsprop">
+            <h5>RMSprop</h5>
+            <div class="formula">s ← ρ·s + (1−ρ)·g²
+θ ← θ − η · g / √(s+ε)</div>
+            <div class="mech-params"><strong>η</strong> = 0.001 &nbsp;·&nbsp; <strong>ρ</strong> = 0.9</div>
+            <div class="mech-desc">Replaces Adagrad's cumulative sum with an exponential moving average — old gradients fade. Effective LR never collapses. No momentum term.</div>
+            <div class="mech-tag">No momentum · Per-param LR</div>
+          </div>
+
+          <div class="mech-card" id="f-mech-adam">
+            <h5>Adam</h5>
+            <div class="formula">m ← β₁·m + (1−β₁)·g
+v ← β₂·v + (1−β₂)·g²
+θ ← θ − η · m̂ / (√v̂+ε)</div>
+            <div class="mech-params"><strong>β₁</strong>=0.9 &nbsp;·&nbsp; <strong>β₂</strong>=0.999 &nbsp;·&nbsp; <strong>η</strong>=0.001</div>
+            <div class="mech-desc">RMSprop + momentum + bias correction. The bias correction (m̂, v̂) prevents cold-start underestimation in early epochs. Fastest convergence.</div>
+            <div class="mech-tag">Momentum + Per-param LR + Bias correction</div>
+          </div>
+
+          <div class="mech-card" id="f-mech-adamw">
+            <h5>AdamW</h5>
+            <div class="formula">m ← β₁·m + (1−β₁)·g
+v ← β₂·v + (1−β₂)·g²
+θ ← θ − η·m̂/(√v̂+ε) − λ·θ</div>
+            <div class="mech-params"><strong>η</strong>=0.001 &nbsp;·&nbsp; <strong>λ</strong>=1e-4 &nbsp;·&nbsp; <strong>β₁</strong>=0.9</div>
+            <div class="mech-desc">Weight decay applied <em>after</em> the Adam step — decoupled from gradient scaling. Genuine regularisation rather than a distorted gradient penalty. Better generalisation.</div>
+            <div class="mech-tag">Adam + Decoupled weight decay</div>
+          </div>
+
+          <div class="mech-card" id="f-mech-nadam">
+            <h5>Nadam</h5>
+            <div class="formula">m ← β₁·m + (1−β₁)·g
+v ← β₂·v + (1−β₂)·g²
+θ ← θ − η·(β₁m̂ + g̃/n̂)/(√v̂+ε)</div>
+            <div class="mech-params"><strong>β₁</strong>=0.9 &nbsp;·&nbsp; <strong>β₂</strong>=0.999 &nbsp;·&nbsp; <strong>η</strong>=0.001</div>
+            <div class="mech-desc">Adam with Nesterov look-ahead in the first moment. Uses gradient at the anticipated next position, giving a better direction estimate. Marginally faster than Adam.</div>
+            <div class="mech-tag">Adam + Nesterov look-ahead</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════
 // 1. MATH ENGINE
@@ -482,10 +596,41 @@ function computeModifiers(config) {
     valAccCeil    = Math.max(valAccCeil   - 0.018, 0.84);
     lossFloor     = lossFloor    + 0.045;
     valLossFloor  = valLossFloor + 0.035;
+  } else if (opt === 'sgd_nesterov') {
+    speed        *= 0.80;
+    noise        *= 1.25;
+    if (overfitStart !== null) overfitStart = Math.min(overfitStart + 3, 20);
+    trainAccCeil  = Math.max(trainAccCeil - 0.018, 0.85);
+    valAccCeil    = Math.max(valAccCeil   - 0.015, 0.84);
+    lossFloor     = lossFloor    + 0.035;
+    valLossFloor  = valLossFloor + 0.025;
+  } else if (opt === 'adagrad') {
+    speed        *= 0.65;
+    noise        *= 0.20;
+    overfitStart  = null;
+    overfitRate   = 0;
+    trainAccCeil  = Math.max(trainAccCeil - 0.050, 0.82);
+    valAccCeil    = Math.max(valAccCeil   - 0.028, 0.83);
+    lossFloor     = lossFloor    + 0.095;
+    valLossFloor  = valLossFloor + 0.075;
   } else if (opt === 'rmsprop') {
     speed        *= 0.93;
     noise        *= 1.18;
     valAccCeil    = Math.max(valAccCeil - 0.003, 0.86);
+  } else if (opt === 'adamw') {
+    noise        *= 0.95;
+    if (overfitStart !== null) overfitStart = Math.min(overfitStart + 4, 28);
+    overfitRate  *= 0.40;
+    trainAccCeil  = Math.max(trainAccCeil - 0.010, 0.93);
+    valAccCeil    = Math.min(valAccCeil   + 0.006, 0.94);
+    valLossFloor  = Math.max(valLossFloor - 0.020, 0.20);
+  } else if (opt === 'nadam') {
+    speed        *= 1.12;
+    if (overfitStart !== null) overfitStart = Math.max(overfitStart - 1, 4);
+    overfitRate  *= 1.05;
+    trainAccCeil  = Math.min(trainAccCeil + 0.005, 0.97);
+    valAccCeil    = Math.min(valAccCeil   + 0.004, 0.94);
+    lossFloor     = Math.max(lossFloor    - 0.005, 0.04);
   }
   // adam: baseline
 
@@ -758,6 +903,57 @@ Combines momentum (first moment m — a running mean of gradients) with RMSprop-
 <br><br>
 <strong>Why:</strong> Adam's bias correction (dividing m and v by 1−β₁ᵗ and 1−β₂ᵗ) means that even in epoch 1, the moment estimates are well-scaled rather than pulled toward zero. The combination of momentum (direction smoothing) and per-parameter adaptive LR (magnitude scaling) makes it robust across a wide range of architectures and tasks without extensive LR tuning — which is why it is the default choice in almost all modern deep learning workflows. β₁ = 0.9, β₂ = 0.999.`,
 };
+const OPT_DEEP_NOTES = {
+  'sgd': `<strong>SGD — Vanilla Gradient Descent (CNN).</strong>
+No memory, no adaptation. Every parameter moves by exactly η × gradient, regardless of magnitude or history.
+<br><br>
+<strong>What you see:</strong> Slowest convergence of all seven. Val loss still descending at epoch 30 — the model is undertrained within this budget. Val accuracy ~85% on CNN (higher than ANN thanks to inductive bias, but still the weakest optimizer here).
+<br><br>
+<strong>Key insight:</strong> SGD often finds <em>flatter minima</em> than adaptive methods, which can sometimes generalise better. On Fashion-MNIST the underfitting penalty outweighs this benefit within 30 epochs, but with more epochs and a tuned LR, SGD can match or beat Adam on generalisation.`,
+
+  'sgd_nesterov': `<strong>SGD + Nesterov Momentum (β = 0.9).</strong>
+Standard momentum applies the velocity from the <em>previous</em> step and then computes the gradient at the current position. Nesterov reverses the order: it first applies the current velocity (a "look-ahead" step) and then computes the gradient at that <em>anticipated future position</em>. This lookahead gradient is a better estimate of the true direction after the update, so corrections happen one step earlier.
+<br><br>
+<strong>What you see:</strong> Noticeably faster convergence than plain SGD+Momentum, smoother curves, and slightly better val accuracy (~87%). The look-ahead effect reduces the overshoot oscillations visible in standard momentum.
+<br><br>
+<strong>Key insight:</strong> The difference between standard momentum and Nesterov is subtle mathematically (a single extra gradient evaluation) but meaningful in practice, especially in valleys where gradients change direction quickly.`,
+
+  'adagrad': `<strong>Adagrad — Adaptive Gradient Algorithm.</strong>
+Accumulates the <em>sum of all squared gradients</em> per parameter from the start of training, then divides the learning rate by its square root. Parameters that received large gradients historically get a progressively smaller effective LR; rarely-updated parameters retain a larger one.
+<br><br>
+<strong>What you see:</strong> Fast early convergence (first 5–8 epochs), then a hard plateau. The model stops improving entirely as the accumulated denominator grows without bound and kills all updates.
+<br><br>
+<strong>Fatal flaw:</strong> The denominator only ever increases — it never forgets old gradients. By mid-training, effective learning rates for every parameter are so small that learning stops. RMSprop was invented specifically to fix this by replacing the cumulative sum with an exponential moving average.`,
+
+  'rmsprop': `<strong>RMSprop — Root Mean Square Propagation.</strong>
+Replaces Adagrad's forever-growing denominator with an <em>exponential moving average</em> of squared gradients (ρ=0.9 → recent gradients count for 90% of the estimate). Old gradients fade, so the effective LR never permanently collapses.
+<br><br>
+<strong>What you see:</strong> Fast convergence, no plateau. Val loss bottoms around epoch 8 then creeps up — typical overfit pattern. Performance near-identical to Adam because on a CNN the gradient scales are relatively stable.
+<br><br>
+<strong>Key insight:</strong> RMSprop adds per-parameter LR scaling but no momentum. Adam = RMSprop + momentum + bias correction. The gap between them is small here because the CNN's convolutional layers already provide a degree of gradient normalisation.`,
+
+  'adam': `<strong>Adam — Adaptive Moment Estimation (CNN baseline).</strong>
+Combines RMSprop (second moment — per-parameter LR scaling) with momentum (first moment — gradient direction smoothing), plus bias correction for both moments in early epochs.
+<br><br>
+<strong>What you see:</strong> Fastest convergence, val accuracy ~92% on CNN. Val loss diverges after epoch ~10 — Adam finds minima quickly but they tend to be sharper (less flat), which hurts generalisation relative to AdamW.
+<br><br>
+<strong>Key insight:</strong> Adam's L2 regularisation (if used) is distorted by the adaptive denominator — the weight decay term gets scaled down for exactly the parameters that matter most. AdamW fixes this.`,
+
+  'adamw': `<strong>AdamW — Adam with Decoupled Weight Decay.</strong>
+Standard Adam adds weight decay as a gradient penalty: <code>g ← g + λθ</code> before the adaptive update. This means the regularisation term is divided by the same adaptive denominator as the gradient — parameters with large gradients get <em>less</em> regularisation, the opposite of what we want. AdamW decouples the two: the Adam update is computed normally, then weight decay is applied directly to the weights: <code>θ ← θ(1 − λ)</code>.
+<br><br>
+<strong>What you see:</strong> Same convergence speed as Adam early on, then visibly slower val loss divergence — the decoupled decay acts as genuine regularisation. Best or tied-best final val accuracy of all seven optimizers.
+<br><br>
+<strong>Key insight:</strong> AdamW is now the recommended default for transformer-based models (ViT, BERT, GPT). The difference matters most when weight decay is a primary regularisation tool.`,
+
+  'nadam': `<strong>Nadam — Adam with Nesterov Momentum.</strong>
+Replaces Adam's standard momentum term with Nesterov look-ahead: instead of applying the accumulated gradient of the <em>previous</em> step, it applies the gradient at the <em>anticipated future position</em>. In practice this means the first-moment estimate in the update formula uses a Nesterov-corrected gradient, giving a slightly better direction estimate each step.
+<br><br>
+<strong>What you see:</strong> Marginally faster convergence than Adam (val loss reaches its minimum 1–2 epochs earlier), similar or slightly better val accuracy. Overfitting onset is slightly earlier because faster convergence means the model "finds the minimum" sooner.
+<br><br>
+<strong>Key insight:</strong> Nadam is rarely a dramatic improvement over Adam in practice. Its advantage shows most in tasks with sharp, rapidly-changing curvature where the look-ahead correction meaningfully changes the gradient direction.`,
+};
+
 const ARCH_NOTES = {
   minimal:      '<strong>D1 Minimal [32].</strong> Only ~25K parameters. Severe <em>underfitting</em> — both training and validation accuracy are low (~0.83 and ~0.82). The model lacks capacity to represent the decision boundary. Train-val gap is small only because the model is too weak to overfit.',
   shallow_wide: '<strong>D2 Shallow-Wide [512].</strong> ~402K parameters in a single wide layer. Lots of capacity but shallow — can represent complex functions but not hierarchical features. Overfits more than baseline.',
@@ -782,7 +978,7 @@ function baseConfig() {
 function seedFor(config) {
   const lr = Math.round(parseFloat(config.lr) * 1e6);
   const bs = parseInt(config.batch_size);
-  const opts = { sgd: 0, sgd_momentum: 1, rmsprop: 2, adam: 3 };
+  const opts = { sgd: 0, sgd_momentum: 1, rmsprop: 2, adam: 3, sgd_nesterov: 4, adagrad: 5, adamw: 6, nadam: 7 };
   const archs = { minimal:0, shallow_wide:1, baseline:2, deep_narrow:3, deep_wide:4, very_deep:5 };
   const mt = config.model_type === 'cnn' ? 100 : 0;
   return (lr * 31 + bs * 7 + (opts[config.optimizer]||3) * 13 + (archs[config.arch_key]||2) * 17 + mt) & 0xFFFFFF;
@@ -978,6 +1174,68 @@ function updateE() {
   }
 }
 
+function updateF() {
+  const opt = getVal('opt2') || 'adam';
+  const overlay = document.getElementById('opt2-overlay').checked;
+  document.getElementById('f-annotation').innerHTML = OPT_DEEP_NOTES[opt] || '';
+
+  const cnnBase = () => ({ ...baseConfig(), model_type: 'cnn' });
+  const ALL_OPTS = ['sgd','sgd_nesterov','adagrad','rmsprop','adam','adamw','nadam'];
+  const OPT_LABELS = { sgd:'SGD', sgd_nesterov:'SGD+Nesterov', adagrad:'Adagrad',
+                       rmsprop:'RMSprop', adam:'Adam', adamw:'AdamW', nadam:'Nadam' };
+
+  if (overlay) {
+    const all = {};
+    ALL_OPTS.forEach(o => {
+      const cfg = { ...cnnBase(), optimizer: o, seed: seedFor({...cnnBase(), optimizer: o}) };
+      all[OPT_LABELS[o]] = generateTrainingCurves(cfg);
+    });
+    renderOverlay('f-loss', 'f-acc', all);
+    document.getElementById('f-stats').innerHTML = '';
+  } else {
+    const cfg = { ...cnnBase(), optimizer: opt, seed: seedFor({...cnnBase(), optimizer: opt}) };
+    const curves = generateTrainingCurves(cfg);
+    renderSingle('f-loss', 'f-acc', curves);
+    renderStats('f-stats', curves);
+  }
+
+  // Bar chart — best val accuracy per optimizer (always shown)
+  const bestAccs = ALL_OPTS.map(o => {
+    const cfg = { ...cnnBase(), optimizer: o, seed: seedFor({...cnnBase(), optimizer: o}) };
+    const c = generateTrainingCurves(cfg);
+    return Math.max(...c.val_acc);
+  });
+  if (chartInstances['f-bar']) chartInstances['f-bar'].destroy();
+  const ctx = document.getElementById('f-bar').getContext('2d');
+  chartInstances['f-bar'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ALL_OPTS.map(o => OPT_LABELS[o]),
+      datasets: [{
+        label: 'Best Val Accuracy',
+        data: bestAccs,
+        backgroundColor: ALL_OPTS.map(o => o === opt && !overlay ? '#6c8ef5' : '#2e3250'),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: c => `Best val acc: ${(c.parsed.y * 100).toFixed(1)}%` } } },
+      scales: {
+        x: { grid: { color: '#1e2236' } },
+        y: { grid: { color: '#1e2236' }, min: 0.70, max: 0.97,
+             ticks: { callback: v => (v * 100).toFixed(0) + '%' } }
+      }
+    }
+  });
+
+  // Highlight active mechanism card
+  document.querySelectorAll('[id^="f-mech-"]').forEach(c => c.classList.remove('active'));
+  const activeCard = document.getElementById('f-mech-' + opt);
+  if (activeCard) activeCard.classList.add('active');
+}
+
 // ═══════════════════════════════════════════════════════════
 // 6. TAB SWITCHING
 // ═══════════════════════════════════════════════════════════
@@ -985,11 +1243,11 @@ function updateE() {
 function switchTab(id) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-  const tabs = ['A','B','C','D','E'];
+  const tabs = ['A','B','C','D','E','F'];
   document.querySelectorAll('.tab')[tabs.indexOf(id)].classList.add('active');
   document.getElementById('tab-' + id).classList.add('active');
   // Trigger update for newly visible tab
-  ({ A: updateA, B: updateB, C: updateC, D: updateD, E: updateE })[id]();
+  ({ A: updateA, B: updateB, C: updateC, D: updateD, E: updateE, F: updateF })[id]();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1001,6 +1259,7 @@ document.querySelectorAll('input[name=bs]').forEach(el => el.addEventListener('c
 document.querySelectorAll('input[name=opt]').forEach(el => el.addEventListener('change', updateC));
 document.querySelectorAll('input[name=arch]').forEach(el => el.addEventListener('change', updateD));
 document.querySelectorAll('input[name=model]').forEach(el => el.addEventListener('change', updateE));
+document.querySelectorAll('input[name=opt2]').forEach(el => el.addEventListener('change', updateF));
 
 // Initial render of active tab
 updateA();
