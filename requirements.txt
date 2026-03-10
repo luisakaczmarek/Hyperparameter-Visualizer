@@ -1,0 +1,9 @@
+# No Python or Node.js dependencies required.
+#
+# This project is a self-contained static HTML application.
+# All JavaScript dependencies are loaded from CDN at runtime:
+#
+#   Chart.js 4.4.0  —  https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js
+#
+# To run: open index.html in any modern browser, or serve with:
+#   python -m http.server 8000

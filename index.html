@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fashion-MNIST Hyperparameter Visualizer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --accent: #6c8ef5;
+    --text: #e8eaf6;
+    --muted: #8892b0;
+    --green: #64ffda;
+    --orange: #ffb347;
+    --red: #ff6b6b;
+    --purple: #c792ea;
+    /* matplotlib default colors */
+    --c0: #1f77b4;
+    --c1: #ff7f0e;
+    --c2: #2ca02c;
+    --c3: #d62728;
+    --c4: #9467bd;
+    --c5: #8c564b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  header { padding: 20px 32px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  header h1 { font-size: 18px; font-weight: 600; color: var(--text); }
+  header p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  .tabs { display: flex; gap: 2px; padding: 0 32px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 18px; cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.15s; user-select: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .content { display: none; padding: 24px 32px; }
+  .content.active { display: flex; flex-direction: column; gap: 20px; }
+
+  .row { display: flex; gap: 20px; align-items: flex-start; }
+  .controls { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; min-width: 220px; flex-shrink: 0; }
+  .controls h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 14px; }
+  .control-group { margin-bottom: 16px; }
+  .control-group label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .radio-group { display: flex; flex-direction: column; gap: 6px; }
+  .radio-item { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 8px; border-radius: 6px; transition: background 0.12s; }
+  .radio-item:hover { background: var(--surface2); }
+  .radio-item input[type=radio] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+  .radio-item span { font-size: 13px; color: var(--text); }
+  .radio-item small { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .toggle-row label { font-size: 12px; color: var(--muted); cursor: pointer; }
+  .toggle-row input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+
+  .charts-area { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .chart-row { display: flex; gap: 16px; }
+  .chart-box { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+  .chart-box h4 { font-size: 12px; color: var(--muted); margin-bottom: 12px; font-weight: 500; }
+  .chart-box canvas { width: 100% !important; height: 240px !important; }
+
+  .annotation { background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .annotation strong { color: var(--text); }
+
+  .stats-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; flex: 1; min-width: 120px; }
+  .stat-card .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .stat-card .value { font-size: 20px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  .stat-card .value.good { color: var(--green); }
+  .stat-card .value.warn { color: var(--orange); }
+  .stat-card .value.bad { color: var(--red); }
+
+  .bar-chart-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .bar-chart-box h4 { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .bar-chart-box canvas { width: 100% !important; height: 160px !important; }
+
+  .scatter-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .scatter-box h4 { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .scatter-box canvas { width: 100% !important; height: 240px !important; }
+
+  .info-note { font-size: 11px; color: var(--muted); padding: 8px 12px; background: var(--surface2); border-radius: 6px; line-height: 1.5; }
+
+  .mech-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .mech-section > h4 { font-size: 12px; color: var(--muted); margin-bottom: 14px; font-weight: 500; }
+  .mech-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .mech-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: border-color 0.15s; display: flex; flex-direction: column; gap: 8px; }
+  .mech-card.active { border-color: var(--accent); }
+  .mech-card h5 { font-size: 12px; font-weight: 600; color: var(--text); margin: 0; }
+  .mech-card .formula { font-family: 'Courier New', monospace; font-size: 11px; color: var(--green); background: var(--bg); border-radius: 4px; padding: 8px 10px; line-height: 1.8; white-space: pre; }
+  .mech-card .mech-params { font-size: 11px; color: var(--muted); }
+  .mech-card .mech-desc { font-size: 11px; color: var(--muted); line-height: 1.55; flex: 1; }
+  .mech-card .mech-tag { font-size: 10px; color: var(--purple); background: var(--surface); border-radius: 4px; padding: 3px 7px; display: inline-block; }
+
+  @media (max-width: 900px) {
+    .row { flex-direction: column; }
+    .chart-row { flex-direction: column; }
+    .controls { min-width: unset; width: 100%; }
+    .mech-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Fashion-MNIST Hyperparameter Visualizer</h1>
+  <p>Session 11 — Core Concepts in Deep Learning &nbsp;·&nbsp; IE University · No training required — curves are mathematically simulated</p>
+</header>
+
+<div style="padding: 14px 32px 12px; background: var(--surface); border-bottom: 1px solid var(--border);">
+  <p style="font-size: 13px; color: var(--muted); line-height: 1.7; max-width: 900px;">
+    This visualiser demonstrates how key training decisions shape a neural network's learning dynamics on the Fashion-MNIST dataset.
+    Each tab isolates one variable — <strong style="color: var(--text);">learning rate</strong>, <strong style="color: var(--text);">batch size</strong>, <strong style="color: var(--text);">optimiser</strong>, <strong style="color: var(--text);">architecture</strong>, and <strong style="color: var(--text);">ANN vs CNN</strong> —
+    while holding all others at their baseline values, so you can observe the effect of each hyperparameter in isolation.
+    No model training is required: all curves are mathematically simulated to reflect real empirical behaviour.
+  </p>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('A')">A: Learning Rate</div>
+  <div class="tab" onclick="switchTab('B')">B: Batch Size</div>
+  <div class="tab" onclick="switchTab('C')">C: Optimizer</div>
+  <div class="tab" onclick="switchTab('D')">D: Architecture</div>
+  <div class="tab" onclick="switchTab('E')">E: ANN vs CNN</div>
+</div>
+
+<!-- ══════════════════ TAB A: Learning Rate ══════════════════ -->
+<div id="tab-A" class="content active">
+  <div class="row">
+    <div class="controls">
+      <h3>Parameters</h3>
+      <div class="control-group">
+        <label>Learning Rate</label>
+        <div class="radio-group" id="lr-group">
+          <label class="radio-item"><input type="radio" name="lr" value="0.1"> <span>0.1</span><small>too high</small></label>
+          <label class="radio-item"><input type="radio" name="lr" value="0.01"> <span>0.01</span></label>
+          <label class="radio-item"><input type="radio" name="lr" value="0.001" checked> <span>0.001</span><small>baseline</small></label>
+          <label class="radio-item"><input type="radio" name="lr" value="0.0001"> <span>0.0001</span></label>
+          <label class="radio-item"><input type="radio" name="lr" value="0.00001"> <span>0.00001</span><small>too low</small></label>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="lr-overlay" onchange="updateA()">
+        <label for="lr-overlay">Overlay all learning rates</label>
+      </div>
+    </div>
+    <div class="charts-area">
+      <div id="a-annotation" class="annotation"></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>Loss over Epochs</h4><canvas id="a-loss"></canvas></div>
+        <div class="chart-box"><h4>Accuracy over Epochs</h4><canvas id="a-acc"></canvas></div>
+      </div>
+      <div class="stats-row" id="a-stats"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ TAB B: Batch Size ══════════════════ -->
+<div id="tab-B" class="content">
+  <div class="row">
+    <div class="controls">
+      <h3>Parameters</h3>
+      <div class="control-group">
+        <label>Batch Size</label>
+        <div class="radio-group" id="bs-group">
+          <label class="radio-item"><input type="radio" name="bs" value="16"> <span>16</span><small>noisy</small></label>
+          <label class="radio-item"><input type="radio" name="bs" value="32"> <span>32</span></label>
+          <label class="radio-item"><input type="radio" name="bs" value="64" checked> <span>64</span><small>baseline</small></label>
+          <label class="radio-item"><input type="radio" name="bs" value="256"> <span>256</span></label>
+          <label class="radio-item"><input type="radio" name="bs" value="1024"> <span>1024</span><small>smooth</small></label>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="bs-overlay" onchange="updateB()">
+        <label for="bs-overlay">Overlay all batch sizes</label>
+      </div>
+    </div>
+    <div class="charts-area">
+      <div id="b-annotation" class="annotation"></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>Loss over Epochs</h4><canvas id="b-loss"></canvas></div>
+        <div class="chart-box"><h4>Accuracy over Epochs</h4><canvas id="b-acc"></canvas></div>
+      </div>
+      <div class="bar-chart-box">
+        <h4>Average Time per Epoch (seconds) — real measurements from notebook</h4>
+        <canvas id="b-timing"></canvas>
+      </div>
+      <div class="stats-row" id="b-stats"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ TAB C: Optimizer ══════════════════ -->
+<div id="tab-C" class="content">
+  <div class="row">
+    <div class="controls">
+      <h3>Parameters</h3>
+      <div class="control-group">
+        <label>Optimizer (lr=0.001)</label>
+        <div class="radio-group" id="opt-group">
+          <label class="radio-item"><input type="radio" name="opt" value="sgd"> <span>SGD</span></label>
+          <label class="radio-item"><input type="radio" name="opt" value="sgd_momentum"> <span>SGD + Momentum</span></label>
+          <label class="radio-item"><input type="radio" name="opt" value="rmsprop"> <span>RMSprop</span></label>
+          <label class="radio-item"><input type="radio" name="opt" value="adam" checked> <span>Adam</span><small>baseline</small></label>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="opt-overlay" onchange="updateC()">
+        <label for="opt-overlay">Overlay all optimizers</label>
+      </div>
+    </div>
+    <div class="charts-area">
+      <div id="c-annotation" class="annotation"></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>Loss over Epochs</h4><canvas id="c-loss"></canvas></div>
+        <div class="chart-box"><h4>Accuracy over Epochs</h4><canvas id="c-acc"></canvas></div>
+      </div>
+      <div class="stats-row" id="c-stats"></div>
+      <div class="mech-section">
+        <h4>Internal Mechanisms — How each optimiser computes the update</h4>
+        <div class="mech-grid">
+
+          <div class="mech-card" id="mech-sgd">
+            <h5>SGD</h5>
+            <div class="formula">θ ← θ − η · ∇L(θ)</div>
+            <div class="mech-params"><strong>η</strong> = 0.001</div>
+            <div class="mech-desc">Raw gradient, scaled by a fixed LR. No history, no adaptation. Every parameter uses the same step size regardless of its gradient magnitude.</div>
+            <div class="mech-tag">No memory · Fixed LR</div>
+          </div>
+
+          <div class="mech-card" id="mech-sgd_momentum">
+            <h5>SGD + Momentum</h5>
+            <div class="formula">v ← β·v + η·∇L(θ)
+θ ← θ − v</div>
+            <div class="mech-params"><strong>η</strong> = 0.001 &nbsp;·&nbsp; <strong>β</strong> = 0.9</div>
+            <div class="mech-desc">Velocity accumulates past gradients (90% retained per step). Consistent directions build speed; oscillating directions cancel — dampening ravine zig-zag.</div>
+            <div class="mech-tag">Velocity memory · Fixed LR</div>
+          </div>
+
+          <div class="mech-card" id="mech-rmsprop">
+            <h5>RMSprop</h5>
+            <div class="formula">s ← ρ·s + (1−ρ)·g²
+θ ← θ − η · g / √(s+ε)</div>
+            <div class="mech-params"><strong>η</strong> = 0.001 &nbsp;·&nbsp; <strong>ρ</strong> = 0.9</div>
+            <div class="mech-desc">Divides each gradient by its own recent RMS magnitude. Large-gradient params get smaller steps; small-gradient params get larger steps. Per-parameter LR scaling with no momentum.</div>
+            <div class="mech-tag">No momentum · Per-param LR</div>
+          </div>
+
+          <div class="mech-card" id="mech-adam">
+            <h5>Adam</h5>
+            <div class="formula">m ← β₁·m + (1−β₁)·g
+v ← β₂·v + (1−β₂)·g²
+θ ← θ − η · m̂ / (√v̂ + ε)</div>
+            <div class="mech-params"><strong>β₁</strong>=0.9 &nbsp;·&nbsp; <strong>β₂</strong>=0.999 &nbsp;·&nbsp; <strong>η</strong>=0.001</div>
+            <div class="mech-desc">Combines momentum (m) and per-param LR scaling (v). Bias correction (m̂, v̂) prevents cold-start underestimation in early epochs. Best of SGD+Momentum and RMSprop.</div>
+            <div class="mech-tag">Momentum + Per-param LR + Bias correction</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ TAB D: Architecture ══════════════════ -->
+<div id="tab-D" class="content">
+  <div class="row">
+    <div class="controls">
+      <h3>Parameters</h3>
+      <div class="control-group">
+        <label>Hidden Layers</label>
+        <div class="radio-group" id="arch-group">
+          <label class="radio-item"><input type="radio" name="arch" value="minimal"> <span>D1: Minimal [32]</span><small>~25K</small></label>
+          <label class="radio-item"><input type="radio" name="arch" value="shallow_wide"> <span>D2: Shallow-Wide [512]</span><small>~402K</small></label>
+          <label class="radio-item"><input type="radio" name="arch" value="baseline" checked> <span>D3: Baseline [128,64]</span><small>~109K</small></label>
+          <label class="radio-item"><input type="radio" name="arch" value="deep_narrow"> <span>D4: Deep-Narrow [64×4]</span><small>~58K</small></label>
+          <label class="radio-item"><input type="radio" name="arch" value="deep_wide"> <span>D5: Deep-Wide [256,256,128,64]</span><small>~285K</small></label>
+          <label class="radio-item"><input type="radio" name="arch" value="very_deep"> <span>D6: Very-Deep [128×6]</span><small>~134K</small></label>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="arch-overlay" onchange="updateD()">
+        <label for="arch-overlay">Overlay all architectures</label>
+      </div>
+    </div>
+    <div class="charts-area">
+      <div id="d-annotation" class="annotation"></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>Loss over Epochs</h4><canvas id="d-loss"></canvas></div>
+        <div class="chart-box"><h4>Accuracy over Epochs</h4><canvas id="d-acc"></canvas></div>
+      </div>
+      <div class="row" style="gap:16px">
+        <div class="scatter-box" style="flex:1">
+          <h4>Parameter Count vs Final Validation Accuracy</h4>
+          <canvas id="d-scatter"></canvas>
+        </div>
+      </div>
+      <div class="stats-row" id="d-stats"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ TAB E: ANN vs CNN ══════════════════ -->
+<div id="tab-E" class="content">
+  <div class="row">
+    <div class="controls">
+      <h3>Parameters</h3>
+      <div class="control-group">
+        <label>Model Type</label>
+        <div class="radio-group" id="model-group">
+          <label class="radio-item"><input type="radio" name="model" value="ann" checked> <span>ANN Baseline</span><small>~109K params</small></label>
+          <label class="radio-item"><input type="radio" name="model" value="cnn"> <span>CNN</span><small>~122K params</small></label>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="model-overlay" onchange="updateE()">
+        <label for="model-overlay">Overlay ANN vs CNN</label>
+      </div>
+      <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border)">
+        <div class="info-note">
+          CNN architecture:<br>
+          Conv2D(32)→MaxPool→Conv2D(64)→MaxPool→Flatten→Dense(128)→Dense(10)
+        </div>
+      </div>
+    </div>
+    <div class="charts-area">
+      <div id="e-annotation" class="annotation"></div>
+      <div class="chart-row">
+        <div class="chart-box"><h4>Loss over Epochs</h4><canvas id="e-loss"></canvas></div>
+        <div class="chart-box"><h4>Accuracy over Epochs</h4><canvas id="e-acc"></canvas></div>
+      </div>
+      <div class="stats-row" id="e-stats"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// 1. MATH ENGINE
+// ═══════════════════════════════════════════════════════════
+
+function seededRandom(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function gaussian(rng) {
+  const u1 = Math.max(rng(), 1e-10);
+  const u2 = rng();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+function generateCurve({ epochs, initial, final_, speed, overfitStart, overfitRate, noiseScale, seed, isAcc }) {
+  const rng = seededRandom(seed);
+  const values = [];
+  let prev = initial;
+  for (let e = 0; e < epochs; e++) {
+    const progress = 1 - Math.exp(-speed * (e + 0.5));
+    let v = initial + (final_ - initial) * progress;
+    // Overfitting drift
+    if (overfitStart !== null && e > overfitStart) {
+      v += overfitRate * (e - overfitStart);
+    }
+    // Noise: heteroskedastic (bigger when value is bigger)
+    const n = gaussian(rng) * noiseScale * Math.sqrt(Math.abs(v) + 0.05);
+    v += n;
+    // Clamp
+    if (isAcc) {
+      v = Math.max(0.05, Math.min(0.999, v));
+      // Accuracy can't decrease much — apply smoothing
+      if (e > 3 && v < prev - 0.03) v = prev - 0.015;
+    } else {
+      v = Math.max(0.01, v);
+    }
+    values.push(parseFloat(v.toFixed(4)));
+    prev = v;
+  }
+  return values;
+}
+
+function computeModifiers(config) {
+  // Baseline: Adam, lr=0.001, bs=64, D3_baseline, ANN
+  let speed = 0.22;
+  let noise = 0.055;
+  let overfitStart = 7;
+  let overfitRate = 0.012;
+  let trainAccCeil = 0.950;
+  let valAccCeil   = 0.876;
+  let lossFloor    = 0.130;
+  let valLossFloor = 0.340;
+  let lossInit     = 2.303;
+  let accInit      = 0.100;
+  let diverging    = false;
+
+  // ── Learning Rate ──────────────────────────────────────────
+  const lr = parseFloat(config.lr);
+  if (lr >= 0.05) {
+    diverging = true;
+  } else if (lr >= 0.008) {
+    speed        *= 1.8;
+    noise        *= 2.4;
+    overfitStart  = 5;
+    overfitRate  *= 1.4;
+    trainAccCeil  = 0.940;
+    valAccCeil    = 0.860;
+    lossFloor     = 0.165;
+    valLossFloor  = 0.375;
+  } else if (lr >= 0.0008) {
+    // baseline — no change
+  } else if (lr >= 0.00008) {
+    speed        *= 0.33;
+    noise        *= 0.38;
+    overfitStart  = 26;
+    overfitRate  *= 0.15;
+    trainAccCeil  = 0.895;
+    valAccCeil    = 0.855;
+    lossFloor     = 0.265;
+    valLossFloor  = 0.390;
+  } else {
+    speed        *= 0.07;
+    noise        *= 0.18;
+    overfitStart  = null;
+    overfitRate   = 0;
+    trainAccCeil  = 0.680;
+    valAccCeil    = 0.660;
+    lossFloor     = 0.820;
+    valLossFloor  = 0.860;
+  }
+
+  // ── Batch Size ─────────────────────────────────────────────
+  const bs = parseInt(config.batch_size);
+  if (bs <= 16) {
+    noise        *= 3.8;
+    overfitRate  *= 0.65;
+    valAccCeil    = Math.min(valAccCeil + 0.004, 0.92);
+    valLossFloor  = Math.max(valLossFloor - 0.018, 0.28);
+  } else if (bs <= 32) {
+    noise        *= 2.1;
+    overfitRate  *= 0.82;
+    valAccCeil    = Math.min(valAccCeil + 0.002, 0.92);
+  } else if (bs <= 64) {
+    // baseline
+  } else if (bs <= 256) {
+    noise        *= 0.38;
+    overfitRate  *= 1.2;
+    speed        *= 0.88;
+    valAccCeil    = Math.max(valAccCeil - 0.010, 0.80);
+    valLossFloor  = valLossFloor + 0.028;
+  } else {
+    noise        *= 0.14;
+    overfitRate  *= 1.55;
+    speed        *= 0.62;
+    valAccCeil    = Math.max(valAccCeil - 0.026, 0.78);
+    valLossFloor  = valLossFloor + 0.072;
+    if (overfitStart !== null) overfitStart = Math.max(overfitStart - 2, 3);
+  }
+
+  // ── Optimizer ──────────────────────────────────────────────
+  const opt = config.optimizer;
+  if (opt === 'sgd') {
+    speed        *= 0.28;
+    noise        *= 1.9;
+    if (overfitStart !== null) overfitStart = Math.min(overfitStart + 12, 28);
+    overfitRate  *= 0.5;
+    trainAccCeil  = Math.max(trainAccCeil - 0.070, 0.74);
+    valAccCeil    = Math.max(valAccCeil   - 0.060, 0.71);
+    lossFloor     = lossFloor    + 0.130;
+    valLossFloor  = valLossFloor + 0.110;
+  } else if (opt === 'sgd_momentum') {
+    speed        *= 0.68;
+    noise        *= 1.35;
+    if (overfitStart !== null) overfitStart = Math.min(overfitStart + 4, 22);
+    trainAccCeil  = Math.max(trainAccCeil - 0.022, 0.87);
+    valAccCeil    = Math.max(valAccCeil   - 0.018, 0.84);
+    lossFloor     = lossFloor    + 0.045;
+    valLossFloor  = valLossFloor + 0.035;
+  } else if (opt === 'rmsprop') {
+    speed        *= 0.93;
+    noise        *= 1.18;
+    valAccCeil    = Math.max(valAccCeil - 0.003, 0.86);
+  }
+  // adam: baseline
+
+  // ── Architecture ───────────────────────────────────────────
+  const archProfiles = {
+    minimal:      { sm: 1.10, om:  0.18, tad: -0.120, vad: -0.095, ld:  0.155, delayedStart: false },
+    shallow_wide: { sm: 1.05, om:  1.22, tad:  0.010, vad: -0.002, ld: -0.010, delayedStart: false },
+    baseline:     { sm: 1.00, om:  1.00, tad:  0.000, vad:  0.000, ld:  0.000, delayedStart: false },
+    deep_narrow:  { sm: 0.90, om:  0.88, tad: -0.010, vad:  0.002, ld:  0.005, delayedStart: false },
+    deep_wide:    { sm: 0.95, om:  1.65, tad:  0.030, vad: -0.009, ld: -0.020, delayedStart: false },
+    very_deep:    { sm: 0.52, om:  1.30, tad:  0.010, vad: -0.006, ld:  0.022, delayedStart: true  },
+  };
+  const p = archProfiles[config.arch_key] || archProfiles.baseline;
+  speed        *= p.sm;
+  overfitRate  *= p.om;
+  trainAccCeil += p.tad;
+  valAccCeil   += p.vad;
+  lossFloor    += p.ld;
+  if (p.delayedStart) { speed *= 0.78; lossInit = 2.303; accInit = 0.10; }
+
+  // ── CNN boost ──────────────────────────────────────────────
+  if (config.model_type === 'cnn') {
+    speed        *= 1.18;
+    valAccCeil    = Math.min(valAccCeil    + 0.042, 0.940);
+    trainAccCeil  = Math.min(trainAccCeil  + 0.025, 0.975);
+    valLossFloor  = Math.max(valLossFloor  - 0.055, 0.220);
+    if (overfitStart !== null) overfitStart = Math.min(overfitStart + 3, 28);
+    overfitRate  *= 0.7;
+  }
+
+  // Clamp
+  speed        = Math.max(speed, 0.008);
+  noise        = Math.max(noise, 0.001);
+  trainAccCeil = Math.min(Math.max(trainAccCeil, 0.10), 0.99);
+  valAccCeil   = Math.min(Math.max(valAccCeil,   0.10), 0.97);
+  lossFloor    = Math.max(lossFloor,    0.04);
+  valLossFloor = Math.max(valLossFloor, 0.13);
+
+  return { speed, noise, overfitStart, overfitRate, trainAccCeil, valAccCeil,
+           lossFloor, valLossFloor, lossInit, accInit, diverging };
+}
+
+function generateDivergingCurves(config) {
+  const epochs = config.epochs || 30;
+  const rng = seededRandom(config.seed || 42);
+  const tl = [], vl = [], ta = [], va = [];
+  for (let e = 0; e < epochs; e++) {
+    if (e < 2) {
+      tl.push(+(2.30 - e * 0.38 + gaussian(rng) * 0.18).toFixed(4));
+      vl.push(+(2.30 - e * 0.18 + gaussian(rng) * 0.22).toFixed(4));
+      ta.push(+(0.10 + e * 0.06 + gaussian(rng) * 0.03).toFixed(4));
+      va.push(+(0.10 + e * 0.04 + gaussian(rng) * 0.03).toFixed(4));
+    } else {
+      tl.push(+(Math.max(1.55 + Math.sin(e * 0.9)  * 0.28 + gaussian(rng) * 0.13, 0.5)).toFixed(4));
+      vl.push(+(Math.max(1.78 + Math.sin(e * 0.9 + 0.6) * 0.20 + gaussian(rng) * 0.16, 0.5)).toFixed(4));
+      ta.push(+(Math.min(Math.max(0.20 + gaussian(rng) * 0.045, 0.10), 0.42)).toFixed(4));
+      va.push(+(Math.min(Math.max(0.19 + gaussian(rng) * 0.040, 0.10), 0.38)).toFixed(4));
+    }
+  }
+  return { train_loss: tl, val_loss: vl, train_acc: ta, val_acc: va };
+}
+
+function generateTrainingCurves(config) {
+  const epochs = config.epochs || 30;
+  const seed   = config.seed   || 42;
+  const mods   = computeModifiers(config);
+
+  if (mods.diverging) return generateDivergingCurves({ ...config, epochs, seed });
+
+  const train_loss = generateCurve({
+    epochs, initial: mods.lossInit, final_: mods.lossFloor,
+    speed: mods.speed, overfitStart: null, overfitRate: 0,
+    noiseScale: mods.noise, seed, isAcc: false,
+  });
+  const val_loss = generateCurve({
+    epochs, initial: mods.lossInit * 1.04, final_: mods.valLossFloor,
+    speed: mods.speed * 0.82, overfitStart: mods.overfitStart,
+    overfitRate: mods.overfitRate, noiseScale: mods.noise * 1.35, seed: seed + 1, isAcc: false,
+  });
+  const train_acc = generateCurve({
+    epochs, initial: mods.accInit, final_: mods.trainAccCeil,
+    speed: mods.speed, overfitStart: null, overfitRate: 0,
+    noiseScale: mods.noise * 0.4, seed: seed + 2, isAcc: true,
+  });
+  const val_acc = generateCurve({
+    epochs, initial: mods.accInit * 0.95, final_: mods.valAccCeil,
+    speed: mods.speed * 0.82, overfitStart: null, overfitRate: 0,
+    noiseScale: mods.noise * 0.5, seed: seed + 3, isAcc: true,
+  });
+
+  return { train_loss, val_loss, train_acc, val_acc };
+}
+
+function summaryStats(curves) {
+  const tl = curves.train_loss, vl = curves.val_loss;
+  const ta = curves.train_acc,  va = curves.val_acc;
+  const epochs = tl.length;
+  const bestValEpoch = vl.indexOf(Math.min(...vl)) + 1;
+  const gap = ta[epochs-1] - va[epochs-1];
+  return {
+    trainLoss:   tl[epochs-1],
+    valLoss:     vl[epochs-1],
+    trainAcc:    ta[epochs-1],
+    valAcc:      va[epochs-1],
+    bestValLoss: Math.min(...vl).toFixed(4),
+    bestValEpoch,
+    gap,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// 2. CHART RENDERING
+// ═══════════════════════════════════════════════════════════
+
+const COLORS = ['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b'];
+const DASHES = [[6,3], [4,2], [2,3], [8,2,2,2], [4,4], [1,3]];
+const chartInstances = {};
+
+const EPOCHS = Array.from({length: 30}, (_, i) => i + 1);
+
+Chart.defaults.color = '#8892b0';
+Chart.defaults.borderColor = '#2e3250';
+Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+Chart.defaults.font.size = 11;
+
+function makeChartData(datasets) {
+  return {
+    labels: EPOCHS,
+    datasets,
+  };
+}
+
+function makeDataset(label, data, colorIdx, dashed) {
+  const c = COLORS[colorIdx % COLORS.length];
+  const d = dashed ? DASHES[colorIdx % DASHES.length] : [];
+  return {
+    label,
+    data,
+    borderColor: c,
+    backgroundColor: 'transparent',
+    borderWidth: dashed ? 1.5 : 2,
+    borderDash: d,
+    pointRadius: 0,
+    pointHoverRadius: 4,
+    tension: 0.35,
+  };
+}
+
+function renderChart(id, datasets, yLabel, yMin, yMax) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (chartInstances[id]) { chartInstances[id].destroy(); }
+
+  chartInstances[id] = new Chart(ctx, {
+    type: 'line',
+    data: makeChartData(datasets),
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 24, padding: 12, usePointStyle: true } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(4)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Epoch', color: '#8892b0' },
+          grid: { color: '#1e2236' },
+          ticks: { maxTicksLimit: 10 },
+        },
+        y: {
+          title: { display: true, text: yLabel, color: '#8892b0' },
+          grid: { color: '#1e2236' },
+          min: yMin,
+          max: yMax,
+        }
+      }
+    }
+  });
+}
+
+function renderSingle(lossId, accId, curves, label) {
+  renderChart(lossId, [
+    makeDataset('Train Loss',      curves.train_loss, 0),
+    makeDataset('Validation Loss', curves.val_loss,   1),
+  ], 'Loss');
+  renderChart(accId, [
+    makeDataset('Train Accuracy',      curves.train_acc, 0),
+    makeDataset('Validation Accuracy', curves.val_acc,   1),
+  ], 'Accuracy', 0, 1);
+}
+
+function renderOverlay(lossId, accId, allCurves) {
+  const lossDs = [], accDs = [];
+  let i = 0;
+  for (const [label, curves] of Object.entries(allCurves)) {
+    lossDs.push(makeDataset(`${label} Train`, curves.train_loss, i, false));
+    lossDs.push(makeDataset(`${label} Val`,   curves.val_loss,   i, true));
+    accDs.push( makeDataset(`${label} Train`, curves.train_acc,  i, false));
+    accDs.push( makeDataset(`${label} Val`,   curves.val_acc,    i, true));
+    i++;
+  }
+  renderChart(lossId, lossDs, 'Loss');
+  renderChart(accId,  accDs,  'Accuracy', 0, 1);
+}
+
+function renderStats(containerId, curves, label) {
+  const s = summaryStats(curves);
+  const gapClass = s.gap < 0.03 ? 'good' : s.gap < 0.08 ? 'warn' : 'bad';
+  const valAccClass = s.valAcc > 0.88 ? 'good' : s.valAcc > 0.80 ? 'warn' : 'bad';
+  document.getElementById(containerId).innerHTML = `
+    <div class="stat-card"><div class="label">Final Train Acc</div><div class="value">${(s.trainAcc*100).toFixed(1)}%</div></div>
+    <div class="stat-card"><div class="label">Final Val Acc</div><div class="value ${valAccClass}">${(s.valAcc*100).toFixed(1)}%</div></div>
+    <div class="stat-card"><div class="label">Final Val Loss</div><div class="value">${s.valLoss.toFixed(4)}</div></div>
+    <div class="stat-card"><div class="label">Best Val Loss</div><div class="value good">${s.bestValLoss} (ep ${s.bestValEpoch})</div></div>
+    <div class="stat-card"><div class="label">Train-Val Gap</div><div class="value ${gapClass}">${(s.gap*100).toFixed(1)}pp</div></div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 3. ANNOTATIONS
+// ═══════════════════════════════════════════════════════════
+
+const LR_NOTES = {
+  '0.1':     '<strong>lr = 0.1 — Too high.</strong> The optimizer overshoots the loss minimum on every step. Loss oscillates around a high plateau (~1.75) and never converges. Accuracy is stuck near <strong>random (≈20%)</strong> for a 10-class problem — the model learns nothing.',
+  '0.01':    '<strong>lr = 0.01 — High.</strong> Fast initial convergence, but noisy. Validation loss diverges noticeably after epoch ~5, and accuracy plateaus around <strong>0.86</strong>. The larger step size prevents settling into a flat minimum.',
+  '0.001':   '<strong>lr = 0.001 — Baseline / Optimal.</strong> Smooth convergence. Training loss reaches ~0.13 but validation loss bottoms at epoch ~7 then rises — classic overfitting. Best validation accuracy ≈ <strong>0.876</strong>. Early stopping around epoch 7–8 would recover the best checkpoint.',
+  '0.0001':  '<strong>lr = 0.0001 — Low.</strong> Stable and smooth — no overfitting — but curves are <em>still descending</em> at epoch 30. The model is undertrained within this budget. More epochs would help, but compute cost grows proportionally.',
+  '0.00001': '<strong>lr = 0.00001 — Too low.</strong> The descent is nearly linear and extremely slow. At epoch 30 the model has barely left its random initialisation. Not useful within 30-epoch budgets.',
+};
+const BS_NOTES = {
+  '16':   '<strong>Batch size = 16 — Small.</strong> Each gradient update uses only 16 samples, so gradients are noisy. This <em>noise acts as implicit regularisation</em> (flatter minima), giving slightly better generalisation. Curves are jittery but val accuracy is slightly higher. Cost: more updates per epoch → slower wall-clock time.',
+  '32':   '<strong>Batch size = 32.</strong> Good balance — noticeably less noise than bs=16 while still retaining the regularisation benefit of smaller batches.',
+  '64':   '<strong>Batch size = 64 — Baseline.</strong> The standard choice for this problem. Smooth enough curves, good generalisation.',
+  '256':  '<strong>Batch size = 256 — Large.</strong> Very smooth curves, faster epochs, but the model finds <em>sharper minima</em> that generalise worse. Validation accuracy drops ~1pp vs baseline.',
+  '1024': '<strong>Batch size = 1024 — Very large.</strong> Extremely smooth curves, fastest wall-clock per epoch. But the generalization gap widens noticeably — large-batch training is known to converge to sharp minima with worse test performance.',
+};
+const OPT_NOTES = {
+  'sgd': `<strong>SGD — Vanilla Stochastic Gradient Descent.</strong>
+The simplest possible update rule: move each parameter opposite to its current gradient, scaled by a fixed learning rate. There is no memory of past gradients and no per-parameter adaptation — every weight is treated identically.
+<br><br>
+<strong>What you see:</strong> Loss is still clearly descending at epoch 30 — the model has not converged within this budget. Val accuracy peaks around <strong>~71%</strong>, far below Adam. Curves are moderately noisy with no sign of levelling off.
+<br><br>
+<strong>Why:</strong> With lr = 0.001 and no momentum, each step is tiny and direction-blind. In the high-dimensional parameter space of a neural network, ravines are common — gradient directions perpendicular to the true descent direction cause oscillation, while progress toward the minimum is glacially slow. SGD needs either a much higher LR (at the risk of divergence) or many more epochs. It also tends to find <em>flatter minima</em> than Adam, which can sometimes generalise better — but on this problem the underfitting penalty outweighs that benefit.`,
+
+  'sgd_momentum': `<strong>SGD + Momentum (β = 0.9).</strong>
+Adds a velocity term that accumulates an exponential moving average of past gradients. The parameter update uses this velocity rather than the raw gradient, so consistent directions build up speed while oscillating directions cancel out.
+<br><br>
+<strong>What you see:</strong> Substantially faster convergence than vanilla SGD, smoother curves. Reaches <strong>~84% val accuracy</strong> — a major jump. Still slightly behind Adam/RMSprop, and training loss continues falling while val loss plateaus, a sign of mild overfitting.
+<br><br>
+<strong>Why:</strong> With β = 0.9, each update carries 90% of the previous velocity forward. In directions where gradients consistently point the same way (toward the minimum), velocity grows — so the effective step size is much larger than η alone. In directions where gradients flip sign each step (ravine walls), velocities cancel, reducing zig-zagging. Think of a ball rolling downhill: it moves faster in flat valleys and slows at turns.`,
+
+  'rmsprop': `<strong>RMSprop — Root Mean Square Propagation.</strong>
+Maintains a running average of the squared gradient for each parameter independently, then divides the gradient by its own RMS magnitude before applying the update. This gives each parameter its own effective learning rate.
+<br><br>
+<strong>What you see:</strong> Fast convergence comparable to Adam. Slight val loss divergence after epoch ~7 (classic overfitting). Val accuracy <strong>~87%</strong> — nearly identical to Adam on this task.
+<br><br>
+<strong>Why:</strong> Parameters that receive large gradients get smaller effective steps (the RMS denominator is large); parameters with small or sparse gradients get larger effective steps. This per-parameter scaling prevents a few dominant dimensions from monopolising the update signal. Originally proposed by Hinton for RNNs, where gradient scales vary wildly across time steps — but it generalises well to ANNs. The key difference from Adam: no momentum term, so directions are not accumulated.`,
+
+  'adam': `<strong>Adam — Adaptive Moment Estimation (Baseline).</strong>
+Combines momentum (first moment m — a running mean of gradients) with RMSprop-style scaling (second moment v — a running mean of squared gradients), plus <em>bias correction</em> that compensates for the cold-start underestimation of m and v in early training.
+<br><br>
+<strong>What you see:</strong> Fastest, smoothest convergence. Best val accuracy <strong>≈ 0.876</strong>. Overfitting is visible (val loss rises after epoch ~7) but the model converges confidently and quickly.
+<br><br>
+<strong>Why:</strong> Adam's bias correction (dividing m and v by 1−β₁ᵗ and 1−β₂ᵗ) means that even in epoch 1, the moment estimates are well-scaled rather than pulled toward zero. The combination of momentum (direction smoothing) and per-parameter adaptive LR (magnitude scaling) makes it robust across a wide range of architectures and tasks without extensive LR tuning — which is why it is the default choice in almost all modern deep learning workflows. β₁ = 0.9, β₂ = 0.999.`,
+};
+const ARCH_NOTES = {
+  minimal:      '<strong>D1 Minimal [32].</strong> Only ~25K parameters. Severe <em>underfitting</em> — both training and validation accuracy are low (~0.83 and ~0.82). The model lacks capacity to represent the decision boundary. Train-val gap is small only because the model is too weak to overfit.',
+  shallow_wide: '<strong>D2 Shallow-Wide [512].</strong> ~402K parameters in a single wide layer. Lots of capacity but shallow — can represent complex functions but not hierarchical features. Overfits more than baseline.',
+  baseline:     '<strong>D3 Baseline [128, 64].</strong> ~109K parameters. Good depth/width trade-off. Overfits after epoch ~7 but reaches solid val accuracy of ~0.876.',
+  deep_narrow:  '<strong>D4 Deep-Narrow [64×4].</strong> ~58K parameters across 4 layers. Fewer params than baseline but more depth. Slightly better generalisation (narrower train-val gap) — depth provides compositional hierarchy without inflating parameter count.',
+  deep_wide:    '<strong>D5 Deep-Wide [256, 256, 128, 64].</strong> ~285K parameters — highest capacity. Strong training accuracy (~0.98) but large overfit gap. Val accuracy only marginally better than baseline despite 2.6× more parameters — diminishing returns.',
+  very_deep:    '<strong>D6 Very-Deep [128×6].</strong> 6 hidden layers. Slow convergence in early epochs suggests <em>vanishing gradient</em> issues — gradients weaken as they propagate through 6 layers. Plain ReLU networks can suffer this without batch norm or skip connections.',
+};
+const MODEL_NOTES = {
+  ann: '<strong>ANN Baseline.</strong> Flattens 28×28 image to a 784-d vector, losing all spatial structure. Dense layers must learn pixel relationships from scratch without any inductive bias. Val accuracy ≈ 0.876.',
+  cnn: '<strong>CNN.</strong> Uses convolutional filters with <em>local receptive fields</em> and <em>weight sharing</em> — the same filter slides across the image, detecting features regardless of position (translational equivariance). This inductive bias makes CNNs far more parameter-efficient for images. Val accuracy ≈ 0.920+ with similar parameter count.',
+};
+
+// ═══════════════════════════════════════════════════════════
+// 4. CONFIG HELPERS
+// ═══════════════════════════════════════════════════════════
+
+function baseConfig() {
+  return { lr: '0.001', batch_size: 64, optimizer: 'adam', arch_key: 'baseline', model_type: 'ann', epochs: 30 };
+}
+
+function seedFor(config) {
+  const lr = Math.round(parseFloat(config.lr) * 1e6);
+  const bs = parseInt(config.batch_size);
+  const opts = { sgd: 0, sgd_momentum: 1, rmsprop: 2, adam: 3 };
+  const archs = { minimal:0, shallow_wide:1, baseline:2, deep_narrow:3, deep_wide:4, very_deep:5 };
+  const mt = config.model_type === 'cnn' ? 100 : 0;
+  return (lr * 31 + bs * 7 + (opts[config.optimizer]||3) * 13 + (archs[config.arch_key]||2) * 17 + mt) & 0xFFFFFF;
+}
+
+function getVal(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 5. EXPERIMENT UPDATERS
+// ═══════════════════════════════════════════════════════════
+
+function updateA() {
+  const lr = getVal('lr') || '0.001';
+  const overlay = document.getElementById('lr-overlay').checked;
+  document.getElementById('a-annotation').innerHTML = LR_NOTES[lr] || '';
+
+  if (overlay) {
+    const lrs = ['0.1','0.01','0.001','0.0001','0.00001'];
+    const all = {};
+    lrs.forEach(l => {
+      const cfg = { ...baseConfig(), lr: l, seed: seedFor({...baseConfig(), lr: l}) };
+      all[`lr=${l}`] = generateTrainingCurves(cfg);
+    });
+    renderOverlay('a-loss', 'a-acc', all);
+    document.getElementById('a-stats').innerHTML = '';
+  } else {
+    const cfg = { ...baseConfig(), lr, seed: seedFor({...baseConfig(), lr}) };
+    const curves = generateTrainingCurves(cfg);
+    renderSingle('a-loss', 'a-acc', curves, `lr=${lr}`);
+    renderStats('a-stats', curves);
+  }
+}
+
+function updateB() {
+  const bs = getVal('bs') || '64';
+  const overlay = document.getElementById('bs-overlay').checked;
+  document.getElementById('b-annotation').innerHTML = BS_NOTES[bs] || '';
+
+  if (overlay) {
+    const bss = ['16','32','64','256','1024'];
+    const all = {};
+    bss.forEach(b => {
+      const cfg = { ...baseConfig(), batch_size: parseInt(b), seed: seedFor({...baseConfig(), batch_size:parseInt(b)}) };
+      all[`bs=${b}`] = generateTrainingCurves(cfg);
+    });
+    renderOverlay('b-loss', 'b-acc', all);
+    document.getElementById('b-stats').innerHTML = '';
+  } else {
+    const cfg = { ...baseConfig(), batch_size: parseInt(bs), seed: seedFor({...baseConfig(), batch_size:parseInt(bs)}) };
+    const curves = generateTrainingCurves(cfg);
+    renderSingle('b-loss', 'b-acc', curves);
+    renderStats('b-stats', curves);
+  }
+
+  // Timing bar chart (always shown)
+  const TIMES = { 16: 4.2, 32: 2.8, 64: 2.1, 256: 1.2, 1024: 0.85 };
+  const bsList = [16, 32, 64, 256, 1024];
+  if (chartInstances['b-timing']) chartInstances['b-timing'].destroy();
+  const ctx = document.getElementById('b-timing').getContext('2d');
+  chartInstances['b-timing'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: bsList.map(b => `bs=${b}`),
+      datasets: [{
+        label: 'Avg seconds / epoch',
+        data: bsList.map(b => TIMES[b]),
+        backgroundColor: bsList.map(b => b == bs && !overlay ? '#6c8ef5' : '#2e3250'),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#1e2236' } },
+        y: { grid: { color: '#1e2236' }, title: { display: true, text: 'seconds' } }
+      }
+    }
+  });
+}
+
+function updateC() {
+  const opt = getVal('opt') || 'adam';
+  const overlay = document.getElementById('opt-overlay').checked;
+  document.getElementById('c-annotation').innerHTML = OPT_NOTES[opt] || '';
+
+  if (overlay) {
+    const opts = ['sgd','sgd_momentum','rmsprop','adam'];
+    const labels = { sgd:'SGD', sgd_momentum:'SGD+Momentum', rmsprop:'RMSprop', adam:'Adam' };
+    const all = {};
+    opts.forEach(o => {
+      const cfg = { ...baseConfig(), optimizer: o, seed: seedFor({...baseConfig(), optimizer:o}) };
+      all[labels[o]] = generateTrainingCurves(cfg);
+    });
+    renderOverlay('c-loss', 'c-acc', all);
+    document.getElementById('c-stats').innerHTML = '';
+  } else {
+    const cfg = { ...baseConfig(), optimizer: opt, seed: seedFor({...baseConfig(), optimizer:opt}) };
+    const curves = generateTrainingCurves(cfg);
+    renderSingle('c-loss', 'c-acc', curves);
+    renderStats('c-stats', curves);
+  }
+
+  // Highlight the active mechanism card
+  document.querySelectorAll('.mech-card').forEach(c => c.classList.remove('active'));
+  const activeCard = document.getElementById('mech-' + opt);
+  if (activeCard) activeCard.classList.add('active');
+}
+
+function updateD() {
+  const arch = getVal('arch') || 'baseline';
+  const overlay = document.getElementById('arch-overlay').checked;
+  document.getElementById('d-annotation').innerHTML = ARCH_NOTES[arch] || '';
+
+  if (overlay) {
+    const archs = ['minimal','shallow_wide','baseline','deep_narrow','deep_wide','very_deep'];
+    const labels = { minimal:'D1 Minimal', shallow_wide:'D2 Shallow-Wide', baseline:'D3 Baseline',
+                     deep_narrow:'D4 Deep-Narrow', deep_wide:'D5 Deep-Wide', very_deep:'D6 Very-Deep' };
+    const all = {};
+    archs.forEach(a => {
+      const cfg = { ...baseConfig(), arch_key: a, seed: seedFor({...baseConfig(), arch_key:a}) };
+      all[labels[a]] = generateTrainingCurves(cfg);
+    });
+    renderOverlay('d-loss', 'd-acc', all);
+    document.getElementById('d-stats').innerHTML = '';
+  } else {
+    const cfg = { ...baseConfig(), arch_key: arch, seed: seedFor({...baseConfig(), arch_key:arch}) };
+    const curves = generateTrainingCurves(cfg);
+    renderSingle('d-loss', 'd-acc', curves);
+    renderStats('d-stats', curves);
+  }
+
+  // Scatter plot — always shown
+  const PARAMS = { minimal:25450, shallow_wide:402442, baseline:109386, deep_narrow:57674, deep_wide:285386, very_deep:133898 };
+  const ARCH_LABELS = { minimal:'D1 Minimal', shallow_wide:'D2 Shallow-Wide', baseline:'D3 Baseline',
+                        deep_narrow:'D4 Deep-Narrow', deep_wide:'D5 Deep-Wide', very_deep:'D6 Very-Deep' };
+  const archs = ['minimal','shallow_wide','baseline','deep_narrow','deep_wide','very_deep'];
+  const scatterData = archs.map((a, i) => {
+    const cfg = { ...baseConfig(), arch_key: a, seed: seedFor({...baseConfig(), arch_key:a}) };
+    const c = generateTrainingCurves(cfg);
+    const va = c.val_acc[c.val_acc.length - 1];
+    return { x: PARAMS[a], y: va, label: ARCH_LABELS[a], color: COLORS[i] };
+  });
+
+  if (chartInstances['d-scatter']) chartInstances['d-scatter'].destroy();
+  const ctx = document.getElementById('d-scatter').getContext('2d');
+  chartInstances['d-scatter'] = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: scatterData.map((d, i) => ({
+        label: d.label,
+        data: [{ x: d.x, y: d.y }],
+        backgroundColor: d.color + 'cc',
+        borderColor: d.color,
+        pointRadius: 10,
+        pointHoverRadius: 12,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{ boxWidth:16, padding:10 } },
+                 tooltip: { callbacks: { label: c => `${c.dataset.label}: params=${c.parsed.x.toLocaleString()}, val_acc=${c.parsed.y.toFixed(4)}` } } },
+      scales: {
+        x: { title:{ display:true, text:'Total Parameters' }, grid:{ color:'#1e2236' },
+             ticks:{ callback: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v } },
+        y: { title:{ display:true, text:'Final Val Accuracy' }, grid:{ color:'#1e2236' }, min:0.80, max:0.96 }
+      }
+    }
+  });
+}
+
+function updateE() {
+  const model = getVal('model') || 'ann';
+  const overlay = document.getElementById('model-overlay').checked;
+  document.getElementById('e-annotation').innerHTML = MODEL_NOTES[model] || '';
+
+  if (overlay) {
+    const all = {};
+    ['ann','cnn'].forEach(m => {
+      const cfg = { ...baseConfig(), model_type: m, seed: seedFor({...baseConfig(), model_type:m}) };
+      all[m.toUpperCase()] = generateTrainingCurves(cfg);
+    });
+    renderOverlay('e-loss', 'e-acc', all);
+    document.getElementById('e-stats').innerHTML = '';
+  } else {
+    const cfg = { ...baseConfig(), model_type: model, seed: seedFor({...baseConfig(), model_type:model}) };
+    const curves = generateTrainingCurves(cfg);
+    renderSingle('e-loss', 'e-acc', curves);
+    renderStats('e-stats', curves);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// 6. TAB SWITCHING
+// ═══════════════════════════════════════════════════════════
+
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+  const tabs = ['A','B','C','D','E'];
+  document.querySelectorAll('.tab')[tabs.indexOf(id)].classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+  // Trigger update for newly visible tab
+  ({ A: updateA, B: updateB, C: updateC, D: updateD, E: updateE })[id]();
+}
+
+// ═══════════════════════════════════════════════════════════
+// 7. WIRE UP LISTENERS & INIT
+// ═══════════════════════════════════════════════════════════
+
+document.querySelectorAll('input[name=lr]').forEach(el => el.addEventListener('change', updateA));
+document.querySelectorAll('input[name=bs]').forEach(el => el.addEventListener('change', updateB));
+document.querySelectorAll('input[name=opt]').forEach(el => el.addEventListener('change', updateC));
+document.querySelectorAll('input[name=arch]').forEach(el => el.addEventListener('change', updateD));
+document.querySelectorAll('input[name=model]').forEach(el => el.addEventListener('change', updateE));
+
+// Initial render of active tab
+updateA();
+</script>
+</body>
+</html>
