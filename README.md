@@ -2,8 +2,6 @@
 
 An interactive, browser-based teaching tool that demonstrates how key neural network hyperparameters affect training dynamics — without requiring any model training or Python environment.
 
-Built for **Session 11: Core Concepts in Deep Learning** at IE University (Bachelor in Data & Business Analytics, 2025–2026).
-
 ---
 
 ## Purpose
@@ -75,10 +73,3 @@ No build step, no package manager, no runtime required.
 ```
 
 ---
-
-## Course Context
-
-- **Course:** Emerging Topics in Data Analytics & Management
-- **Institution:** IE University
-- **Session:** 11 — Core Concepts in Deep Learning
-- **Academic year:** 2025–2026
